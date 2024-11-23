@@ -51,13 +51,6 @@ export interface ToolkitCleanerProps {
    * @default Duration.minutes(5)
    */
   readonly cleanAssetsTimeout?: Duration;
-
-  /**
-   * Whether to clean ECR assets.
-   *
-   * @default true
-   */
-  readonly cleanEcrAssets?: boolean;
 }
 
 /**
@@ -96,9 +89,9 @@ export class ToolkitCleaner extends Construct {
 
     const extractTemplateHashesFunction = new ExtractTemplateHashesFunction(this, 'ExtractTemplateHashesFunction', {
       timeout: Duration.seconds(30),
-      environment: props.cleanEcrAssets !== false ? {
+      environment: {
         DOCKER_IMAGE_ASSET_HASH: dockerImageAsset.assetHash,
-      } : undefined,
+      },
     });
     extractTemplateHashesFunction.addToRolePolicy(new PolicyStatement({
       actions: ['cloudformation:GetTemplate'],
@@ -138,39 +131,29 @@ export class ToolkitCleaner extends Construct {
 
     if (!props.dryRun) {
       cleanObjectsFunction.addEnvironment('RUN', 'true');
-      if (props.cleanEcrAssets !== false) {
-        cleanImagesFunction.addEnvironment('RUN', 'true');
-      }
+      cleanImagesFunction.addEnvironment('RUN', 'true');
     }
 
     if (props.retainAssetsNewerThan) {
       const retainMilliseconds = props.retainAssetsNewerThan.toMilliseconds().toString();
       cleanObjectsFunction.addEnvironment('RETAIN_MILLISECONDS', retainMilliseconds);
-      if (props.cleanEcrAssets !== false) {
-        cleanImagesFunction.addEnvironment('RETAIN_MILLISECONDS', retainMilliseconds);
-      }
+      cleanImagesFunction.addEnvironment('RETAIN_MILLISECONDS', retainMilliseconds);
     }
 
     const sumReclaimed = new tasks.EvaluateExpression(this, 'SumReclaimed', {
       expression: '({ Deleted: $[0].Deleted + $[1].Deleted, Reclaimed: $[0].Reclaimed + $[1].Reclaimed })',
     });
 
-    const stateMachineDefinition = getStackNames
-      .next(stacksMap.itemProcessor(extractTemplateHashes))
-      .next(flattenHashes);
-
-    if (props.cleanEcrAssets !== false) {
-      stateMachineDefinition.next(new sfn.Parallel(this, 'Clean')
-        .branch(cleanObjects)
-        .branch(cleanImages))
-        .next(sumReclaimed);
-    } else {
-      stateMachineDefinition.next(cleanObjects)
-        .next(sumReclaimed);
-    }
-
     const stateMachine = new sfn.StateMachine(this, 'Resource', {
-      definitionBody: sfn.DefinitionBody.fromChainable(stateMachineDefinition),
+      definitionBody: sfn.DefinitionBody.fromChainable(
+        getStackNames
+          .next(stacksMap.itemProcessor(extractTemplateHashes))
+          .next(flattenHashes)
+          .next(new sfn.Parallel(this, 'Clean')
+            .branch(cleanObjects)
+            .branch(cleanImages))
+          .next(sumReclaimed),
+      ),
     });
 
     const rule = new Rule(this, 'Rule', {

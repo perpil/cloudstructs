@@ -41,14 +41,6 @@ new ToolkitCleaner(this, 'ToolkitCleaner', {
 Use the `dryRun` prop to only output the number of assets and total size that
 would be deleted but without actually deleting assets.
 
-The `cleanEcrAssets` prop can be used to conditionally deploy the ECR image cleanup code/step function branch:
-
-```ts
-new ToolkitCleaner(this, 'ToolkitCleaner', {
-  cleanEcrAssets: false,
-});
-```
-
 <p align="center">
   <img src="toolkit-cleaner.svg" width="50%">
 </p>

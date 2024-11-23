@@ -39,6 +39,6 @@ Version >= 0.2.0 requires AWS CDK v2.
   to the bucket.
 
 * [`ToolkitCleaner`](src/toolkit-cleaner) Clean unused S3 and ECR assets from your CDK
-  Toolkit. The `cleanEcrAssets` property can be used to conditionally deploy the ECR image cleanup code/step function branch.
+  Toolkit.
 
 * [`UrlShortener`](src/url-shortener) Deploy an URL shortener API
