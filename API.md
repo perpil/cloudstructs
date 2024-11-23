@@ -3584,6 +3584,7 @@ const toolkitCleanerProps: ToolkitCleanerProps = { ... }
 | **Name** | **Type** | **Description** |
 | --- | --- | --- |
 | <code><a href="#cloudstructs.ToolkitCleanerProps.property.cleanAssetsTimeout">cleanAssetsTimeout</a></code> | <code>aws-cdk-lib.Duration</code> | The timeout for the Lambda functions that clean assets. |
+| <code><a href="#cloudstructs.ToolkitCleanerProps.property.cleanEcrAssets">cleanEcrAssets</a></code> | <code>boolean</code> | Whether to clean ECR assets. |
 | <code><a href="#cloudstructs.ToolkitCleanerProps.property.dryRun">dryRun</a></code> | <code>boolean</code> | Only output number of assets and total size that would be deleted but without actually deleting assets. |
 | <code><a href="#cloudstructs.ToolkitCleanerProps.property.retainAssetsNewerThan">retainAssetsNewerThan</a></code> | <code>aws-cdk-lib.Duration</code> | Retain unused assets that were created recently. |
 | <code><a href="#cloudstructs.ToolkitCleanerProps.property.schedule">schedule</a></code> | <code>aws-cdk-lib.aws_events.Schedule</code> | The schedule for the cleaner. |
@@ -3601,6 +3602,21 @@ public readonly cleanAssetsTimeout: Duration;
 - *Default:* Duration.minutes(5)
 
 The timeout for the Lambda functions that clean assets.
+
+---
+
+##### `cleanEcrAssets`<sup>Optional</sup> <a name="cleanEcrAssets" id="cloudstructs.ToolkitCleanerProps.property.cleanEcrAssets"></a>
+
+```typescript
+public readonly cleanEcrAssets: boolean;
+```
+
+- *Type:* boolean
+- *Default:* true
+
+Whether to clean ECR assets.
+
+If set to `false`, only S3 assets will be cleaned. If omitted or set to true, both S3 and ECR assets will be cleaned and Docker must be installed and running.
 
 ---
 

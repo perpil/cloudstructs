@@ -51,6 +51,13 @@ export interface ToolkitCleanerProps {
    * @default Duration.minutes(5)
    */
   readonly cleanAssetsTimeout?: Duration;
+
+  /**
+   * Whether to clean ECR assets. If set to `false`, only S3 assets will be cleaned. If omitted or set to true, both S3 and ECR assets will be cleaned and Docker must be installed and running.
+   *
+   * @default true
+   */
+  readonly cleanEcrAssets?: boolean;
 }
 
 /**
@@ -60,12 +67,15 @@ export class ToolkitCleaner extends Construct {
   constructor(scope: Construct, id: string, props: ToolkitCleanerProps = {}) {
     super(scope, id);
 
+    const cleanEcrAssets = props.cleanEcrAssets ?? true;
+    let retainMilliseconds;
+    if (props.retainAssetsNewerThan) {
+      retainMilliseconds = props.retainAssetsNewerThan.toMilliseconds().toString();
+    }
+
     // Dummy assets to reference S3 bucket and ECR repository
     const fileAsset = new Asset(this, 'FileAsset', {
       path: path.join(__dirname, '..', '..', 'assets', 'toolkit-cleaner', 'docker', 'dummy.txt'),
-    });
-    const dockerImageAsset = new DockerImageAsset(this, 'DockerImageAsset', {
-      directory: path.join(__dirname, '..', '..', 'assets', 'toolkit-cleaner', 'docker'),
     });
 
     const getStackNamesFunction = new GetStackNamesFunction(this, 'GetStackNamesFunction', {
@@ -75,6 +85,7 @@ export class ToolkitCleaner extends Construct {
       actions: ['cloudformation:DescribeStacks', 'cloudformation:ListStacks'],
       resources: ['*'],
     }));
+
     const getStackNames = new tasks.LambdaInvoke(this, 'GetStackNames', {
       lambdaFunction: getStackNamesFunction,
       payloadResponseOnly: true,
@@ -87,10 +98,58 @@ export class ToolkitCleaner extends Construct {
       },
     });
 
+    let cleanImages: tasks.LambdaInvoke, dockerImageAsset: DockerImageAsset;
+    if (cleanEcrAssets) {
+      dockerImageAsset = new DockerImageAsset(this, 'DockerImageAsset', {
+        directory: path.join(__dirname, '..', '..', 'assets', 'toolkit-cleaner', 'docker'),
+      });
+
+      const cleanImagesFunction = new CleanImagesFunction(this, 'CleanImagesFunction', {
+        timeout: props.cleanAssetsTimeout ?? Duration.minutes(5),
+      });
+      cleanImagesFunction.addEnvironment('REPOSITORY_NAME', dockerImageAsset.repository.repositoryName);
+      dockerImageAsset.repository.grant(cleanImagesFunction, 'ecr:DescribeImages', 'ecr:BatchDeleteImage');
+      cleanImages = new tasks.LambdaInvoke(this, 'CleanImages', {
+        lambdaFunction: cleanImagesFunction,
+        payloadResponseOnly: true,
+      });
+      if (!props.dryRun) {
+        cleanImagesFunction.addEnvironment('RUN', 'true');
+      }
+
+      if (retainMilliseconds) {
+        cleanImagesFunction.addEnvironment('RETAIN_MILLISECONDS', retainMilliseconds);
+      }
+    }
+
+    const cleanObjectsFunction = new CleanObjectsFunction(this, 'CleanObjectsFunction', {
+      timeout: props.cleanAssetsTimeout ?? Duration.minutes(5),
+    });
+    cleanObjectsFunction.addEnvironment('BUCKET_NAME', fileAsset.bucket.bucketName);
+    fileAsset.bucket.grantRead(cleanObjectsFunction);
+    fileAsset.bucket.grantDelete(cleanObjectsFunction);
+    const cleanObjects = new tasks.LambdaInvoke(this, 'CleanObjects', {
+      lambdaFunction: cleanObjectsFunction,
+      payloadResponseOnly: true,
+    });
+
+    if (!props.dryRun) {
+      cleanObjectsFunction.addEnvironment('RUN', 'true');
+    }
+
+    if (retainMilliseconds) {
+      cleanObjectsFunction.addEnvironment('RETAIN_MILLISECONDS', retainMilliseconds);
+    }
+
+    const sumReclaimed = new tasks.EvaluateExpression(this, 'SumReclaimed', {
+      expression: cleanEcrAssets ?
+        '({ Deleted: $[0].Deleted + $[1].Deleted, Reclaimed: $[0].Reclaimed + $[1].Reclaimed })':'({ Deleted: $[0].Deleted, Reclaimed: $[0].Reclaimed})',
+    });
+
     const extractTemplateHashesFunction = new ExtractTemplateHashesFunction(this, 'ExtractTemplateHashesFunction', {
       timeout: Duration.seconds(30),
       environment: {
-        DOCKER_IMAGE_ASSET_HASH: dockerImageAsset.assetHash,
+        DOCKER_IMAGE_ASSET_HASH: cleanEcrAssets ? dockerImageAsset!.assetHash : ' ',
       },
     });
     extractTemplateHashesFunction.addToRolePolicy(new PolicyStatement({
@@ -108,51 +167,23 @@ export class ToolkitCleaner extends Construct {
       expression: '[...new Set(($.AssetHashes).flat())]',
     });
 
-    const cleanObjectsFunction = new CleanObjectsFunction(this, 'CleanObjectsFunction', {
-      timeout: props.cleanAssetsTimeout ?? Duration.minutes(5),
-    });
-    cleanObjectsFunction.addEnvironment('BUCKET_NAME', fileAsset.bucket.bucketName);
-    fileAsset.bucket.grantRead(cleanObjectsFunction);
-    fileAsset.bucket.grantDelete(cleanObjectsFunction);
-    const cleanObjects = new tasks.LambdaInvoke(this, 'CleanObjects', {
-      lambdaFunction: cleanObjectsFunction,
-      payloadResponseOnly: true,
-    });
+    const stateMachineDefinition = getStackNames
+      .next(stacksMap.itemProcessor(extractTemplateHashes))
+      .next(flattenHashes);
 
-    const cleanImagesFunction = new CleanImagesFunction(this, 'CleanImagesFunction', {
-      timeout: props.cleanAssetsTimeout ?? Duration.minutes(5),
-    });
-    cleanImagesFunction.addEnvironment('REPOSITORY_NAME', dockerImageAsset.repository.repositoryName);
-    dockerImageAsset.repository.grant(cleanImagesFunction, 'ecr:DescribeImages', 'ecr:BatchDeleteImage');
-    const cleanImages = new tasks.LambdaInvoke(this, 'CleanImages', {
-      lambdaFunction: cleanImagesFunction,
-      payloadResponseOnly: true,
-    });
-
-    if (!props.dryRun) {
-      cleanObjectsFunction.addEnvironment('RUN', 'true');
-      cleanImagesFunction.addEnvironment('RUN', 'true');
+    if (cleanEcrAssets) {
+      stateMachineDefinition.next(new sfn.Parallel(this, 'Clean')
+        .branch(cleanObjects)
+        .branch(cleanImages!))
+        .next(sumReclaimed);
+    } else {
+      stateMachineDefinition.next(cleanObjects)
+        .next(sumReclaimed);
     }
-
-    if (props.retainAssetsNewerThan) {
-      const retainMilliseconds = props.retainAssetsNewerThan.toMilliseconds().toString();
-      cleanObjectsFunction.addEnvironment('RETAIN_MILLISECONDS', retainMilliseconds);
-      cleanImagesFunction.addEnvironment('RETAIN_MILLISECONDS', retainMilliseconds);
-    }
-
-    const sumReclaimed = new tasks.EvaluateExpression(this, 'SumReclaimed', {
-      expression: '({ Deleted: $[0].Deleted + $[1].Deleted, Reclaimed: $[0].Reclaimed + $[1].Reclaimed })',
-    });
 
     const stateMachine = new sfn.StateMachine(this, 'Resource', {
       definitionBody: sfn.DefinitionBody.fromChainable(
-        getStackNames
-          .next(stacksMap.itemProcessor(extractTemplateHashes))
-          .next(flattenHashes)
-          .next(new sfn.Parallel(this, 'Clean')
-            .branch(cleanObjects)
-            .branch(cleanImages))
-          .next(sumReclaimed),
+        stateMachineDefinition,
       ),
     });
 

@@ -9,14 +9,7 @@ beforeEach(() => {
 
 test('ToolkitCleaner', () => {
   new ToolkitCleaner(stack, 'ToolkitCleaner');
-
   Template.fromStack(stack).hasResourceProperties('AWS::StepFunctions::StateMachine', {
-    RoleArn: {
-      'Fn::GetAtt': [
-        'ToolkitCleanerRole794E8158',
-        'Arn',
-      ],
-    },
     DefinitionString: {
       'Fn::Join': [
         '',
@@ -67,6 +60,12 @@ test('ToolkitCleaner', () => {
         ],
       ],
     },
+    RoleArn: {
+      'Fn::GetAtt': [
+        'ToolkitCleanerRole794E8158',
+        'Arn',
+      ],
+    },
   });
 
   Template.fromStack(stack).hasResourceProperties('AWS::Lambda::Function', {
@@ -96,6 +95,64 @@ test('ToolkitCleaner', () => {
       },
     ],
   });
+});
+
+test('cleanEcrAssets set to false', () => {
+  new ToolkitCleaner(stack, 'ToolkitCleaner', {
+    cleanEcrAssets: false,
+  });
+  Template.fromStack(stack).hasResourceProperties('AWS::StepFunctions::StateMachine', {
+    DefinitionString: {
+      'Fn::Join': [
+        '',
+        [
+          '{"StartAt":"GetStackNames","States":{"GetStackNames":{"Next":"StacksMap","Retry":[{"ErrorEquals":["Lambda.ClientExecutionTimeoutException","Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],"IntervalSeconds":2,"MaxAttempts":6,"BackoffRate":2}],"Type":"Task","Resource":"',
+          {
+            'Fn::GetAtt': [
+              'ToolkitCleanerGetStackNamesFunction362F31B8',
+              'Arn',
+            ],
+          },
+          '"},"StacksMap":{"Type":"Map","Next":"FlattenHashes","ResultSelector":{"AssetHashes.$":"$"},"ItemProcessor":{"ProcessorConfig":{"Mode":"INLINE"},"StartAt":"ExtractTemplateHashes","States":{"ExtractTemplateHashes":{"End":true,"Retry":[{"ErrorEquals":["Lambda.ClientExecutionTimeoutException","Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],"IntervalSeconds":2,"MaxAttempts":6,"BackoffRate":2},{"ErrorEquals":["Throttling"]}],"Type":"Task","Resource":"',
+          {
+            'Fn::GetAtt': [
+              'ToolkitCleanerExtractTemplateHashesFunctionFFDFB6D1',
+              'Arn',
+            ],
+          },
+          '"}}},"MaxConcurrency":1},"FlattenHashes":{"Next":"CleanObjects","Type":"Task","Resource":"',
+          {
+            'Fn::GetAtt': [
+              'Eval41256dc5445742738ed917bc818694e54EB1134F',
+              'Arn',
+            ],
+          },
+          '","Parameters":{"expression":"[...new Set(($.AssetHashes).flat())]","expressionAttributeValues":{"$.AssetHashes.$":"$.AssetHashes"}}},"CleanObjects":{"Next":"SumReclaimed","Retry":[{"ErrorEquals":["Lambda.ClientExecutionTimeoutException","Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],"IntervalSeconds":2,"MaxAttempts":6,"BackoffRate":2}],"Type":"Task","Resource":"',
+          {
+            'Fn::GetAtt': [
+              'ToolkitCleanerCleanObjectsFunction23A18EAE',
+              'Arn',
+            ],
+          },
+          '"},"SumReclaimed":{"End":true,"Type":"Task","Resource":"',
+          {
+            'Fn::GetAtt': [
+              'Eval41256dc5445742738ed917bc818694e54EB1134F',
+              'Arn',
+            ],
+          },
+          '","Parameters":{"expression":"({ Deleted: $[0].Deleted, Reclaimed: $[0].Reclaimed})","expressionAttributeValues":{"$[0].Deleted.$":"$[0].Deleted","$[0].Reclaimed.$":"$[0].Reclaimed"}}}}}',
+        ],
+      ],
+    },
+    RoleArn: {
+      'Fn::GetAtt': [
+        'ToolkitCleanerRole794E8158',
+        'Arn',
+      ],
+    },
+  },
+  );
 });
 
 test('with dry run', () => {

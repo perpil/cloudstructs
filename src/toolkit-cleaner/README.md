@@ -41,6 +41,8 @@ new ToolkitCleaner(this, 'ToolkitCleaner', {
 Use the `dryRun` prop to only output the number of assets and total size that
 would be deleted but without actually deleting assets.
 
+Set the `cleanEcrAssets` prop to `false` if you don't want to clean ECR assets and have Docker running to deploy.
+
 <p align="center">
   <img src="toolkit-cleaner.svg" width="50%">
 </p>

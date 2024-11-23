@@ -85,7 +85,7 @@
     "ToolkitCleanerGetStackNamesFunctionServiceRole0620C307"
    ]
   },
-  "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB": {
+  "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6": {
    "Type": "AWS::IAM::Role",
    "Properties": {
     "AssumeRolePolicyDocument": {
@@ -116,56 +116,84 @@
     ]
    }
   },
-  "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleDefaultPolicy77851779": {
+  "ToolkitCleanerCleanImagesFunctionServiceRoleDefaultPolicy44E268CF": {
    "Type": "AWS::IAM::Policy",
    "Properties": {
     "PolicyDocument": {
      "Statement": [
       {
-       "Action": "cloudformation:GetTemplate",
+       "Action": [
+        "ecr:DescribeImages",
+        "ecr:BatchDeleteImage"
+       ],
        "Effect": "Allow",
-       "Resource": "*"
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          "arn:",
+          {
+           "Ref": "AWS::Partition"
+          },
+          ":ecr:",
+          {
+           "Ref": "AWS::Region"
+          },
+          ":",
+          {
+           "Ref": "AWS::AccountId"
+          },
+          ":repository/",
+          {
+           "Fn::Sub": "cdk-hnb659fds-container-assets-${AWS::AccountId}-${AWS::Region}"
+          }
+         ]
+        ]
+       }
       }
      ],
      "Version": "2012-10-17"
     },
-    "PolicyName": "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleDefaultPolicy77851779",
+    "PolicyName": "ToolkitCleanerCleanImagesFunctionServiceRoleDefaultPolicy44E268CF",
     "Roles": [
      {
-      "Ref": "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB"
+      "Ref": "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6"
      }
     ]
    }
   },
-  "ToolkitCleanerExtractTemplateHashesFunctionFFDFB6D1": {
+  "ToolkitCleanerCleanImagesFunction96CABD19": {
    "Type": "AWS::Lambda::Function",
    "Properties": {
     "Code": {
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "839231c3a66de2124ed53cba376ac7d09e962b10a04d77f96cd2f74e930f75c9.zip"
+     "S3Key": "c35f283ae2dd66b8baf5296da1c747728ac2ee89c9bcd86d33de4beae5f7569d.zip"
     },
-    "Description": "src/toolkit-cleaner/extract-template-hashes.lambda.ts",
+    "Description": "src/toolkit-cleaner/clean-images.lambda.ts",
     "Environment": {
      "Variables": {
-      "DOCKER_IMAGE_ASSET_HASH": "59bc252bbfc4819edcc48f546a0ea71b7b108d3899f8f503cd6f5bcc1f375126",
-      "AWS_NODEJS_CONNECTION_REUSE_ENABLED": "1"
+      "AWS_NODEJS_CONNECTION_REUSE_ENABLED": "1",
+      "REPOSITORY_NAME": {
+       "Fn::Sub": "cdk-hnb659fds-container-assets-${AWS::AccountId}-${AWS::Region}"
+      },
+      "RETAIN_MILLISECONDS": "7776000000"
      }
     },
     "Handler": "index.handler",
     "Role": {
      "Fn::GetAtt": [
-      "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB",
+      "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6",
       "Arn"
      ]
     },
     "Runtime": "nodejs20.x",
-    "Timeout": 30
+    "Timeout": 300
    },
    "DependsOn": [
-    "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleDefaultPolicy77851779",
-    "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB"
+    "ToolkitCleanerCleanImagesFunctionServiceRoleDefaultPolicy44E268CF",
+    "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6"
    ]
   },
   "ToolkitCleanerCleanObjectsFunctionServiceRole7B7993E1": {
@@ -310,7 +338,7 @@
     "ToolkitCleanerCleanObjectsFunctionServiceRole7B7993E1"
    ]
   },
-  "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6": {
+  "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB": {
    "Type": "AWS::IAM::Role",
    "Properties": {
     "AssumeRolePolicyDocument": {
@@ -341,84 +369,56 @@
     ]
    }
   },
-  "ToolkitCleanerCleanImagesFunctionServiceRoleDefaultPolicy44E268CF": {
+  "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleDefaultPolicy77851779": {
    "Type": "AWS::IAM::Policy",
    "Properties": {
     "PolicyDocument": {
      "Statement": [
       {
-       "Action": [
-        "ecr:DescribeImages",
-        "ecr:BatchDeleteImage"
-       ],
+       "Action": "cloudformation:GetTemplate",
        "Effect": "Allow",
-       "Resource": {
-        "Fn::Join": [
-         "",
-         [
-          "arn:",
-          {
-           "Ref": "AWS::Partition"
-          },
-          ":ecr:",
-          {
-           "Ref": "AWS::Region"
-          },
-          ":",
-          {
-           "Ref": "AWS::AccountId"
-          },
-          ":repository/",
-          {
-           "Fn::Sub": "cdk-hnb659fds-container-assets-${AWS::AccountId}-${AWS::Region}"
-          }
-         ]
-        ]
-       }
+       "Resource": "*"
       }
      ],
      "Version": "2012-10-17"
     },
-    "PolicyName": "ToolkitCleanerCleanImagesFunctionServiceRoleDefaultPolicy44E268CF",
+    "PolicyName": "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleDefaultPolicy77851779",
     "Roles": [
      {
-      "Ref": "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6"
+      "Ref": "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB"
      }
     ]
    }
   },
-  "ToolkitCleanerCleanImagesFunction96CABD19": {
+  "ToolkitCleanerExtractTemplateHashesFunctionFFDFB6D1": {
    "Type": "AWS::Lambda::Function",
    "Properties": {
     "Code": {
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "c35f283ae2dd66b8baf5296da1c747728ac2ee89c9bcd86d33de4beae5f7569d.zip"
+     "S3Key": "839231c3a66de2124ed53cba376ac7d09e962b10a04d77f96cd2f74e930f75c9.zip"
     },
-    "Description": "src/toolkit-cleaner/clean-images.lambda.ts",
+    "Description": "src/toolkit-cleaner/extract-template-hashes.lambda.ts",
     "Environment": {
      "Variables": {
-      "AWS_NODEJS_CONNECTION_REUSE_ENABLED": "1",
-      "REPOSITORY_NAME": {
-       "Fn::Sub": "cdk-hnb659fds-container-assets-${AWS::AccountId}-${AWS::Region}"
-      },
-      "RETAIN_MILLISECONDS": "7776000000"
+      "DOCKER_IMAGE_ASSET_HASH": "59bc252bbfc4819edcc48f546a0ea71b7b108d3899f8f503cd6f5bcc1f375126",
+      "AWS_NODEJS_CONNECTION_REUSE_ENABLED": "1"
      }
     },
     "Handler": "index.handler",
     "Role": {
      "Fn::GetAtt": [
-      "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6",
+      "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB",
       "Arn"
      ]
     },
     "Runtime": "nodejs20.x",
-    "Timeout": 300
+    "Timeout": 30
    },
    "DependsOn": [
-    "ToolkitCleanerCleanImagesFunctionServiceRoleDefaultPolicy44E268CF",
-    "ToolkitCleanerCleanImagesFunctionServiceRole244C9BB6"
+    "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleDefaultPolicy77851779",
+    "ToolkitCleanerExtractTemplateHashesFunctionServiceRoleAFA05EEB"
    ]
   },
   "ToolkitCleanerRole794E8158": {
